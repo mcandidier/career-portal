@@ -24,7 +24,9 @@ export class SidebarFilterComponent implements OnChanges {
   public selectedFilter: any;
   public hasParams: boolean = false;
   public routerParams: any;
-  public values: any[] = [];
+  private values: any[] = [];
+  private filterValues: any[] = [];
+  private onInteract: boolean = false;
 
   constructor(
     private service: SearchService,
@@ -32,22 +34,16 @@ export class SidebarFilterComponent implements OnChanges {
     private activatedRoute: ActivatedRoute, 
     private _router: Router) {
 
-      localStorage.removeItem('loading'); // clear loading state
+      localStorage.clear();
+      console.log('contructor');
 
-      let categories: string[] = ['publishedCategory.id{?^^equals}2000369', 'publishedCategory.id{?^^equals}2000055'];
-      const _filter: any = {'publishedCategory': categories};  
-      this.filter = _filter;
-      console.log('_filter', _filter);
       this.activatedRoute.queryParams.subscribe((params: object) => {
         if (Object.keys(params).length !== 0) {
-          // console.log('------------------------------');
-          // console.log(params, 'params'); // Print the parameter to the console. 
           this.hasParams = true;
           this.routerParams = params;
-        } else {
-          localStorage.removeItem('category');
-          localStorage.removeItem('state');
-          localStorage.removeItem('city');
+          localStorage.setItem('category', params['category']);
+          localStorage.setItem('city', params['city']);
+          localStorage.setItem('state', params['state']);
         }
       });
     }
@@ -70,72 +66,51 @@ export class SidebarFilterComponent implements OnChanges {
 
   private getFilterOptions(): void {
     this.loading = true; 
-    console.log(this.filter, 'this filter init..');
     this.service.getCurrentJobIds(this.filter, [this.fieldName]).subscribe(this.handleJobIdsOnSuccess.bind(this));  
   }
 
   private getFilterParams(key: string): any {
-    const params: string = this.routerParams[key];
-    // let state: string = this.routerParams['state'];
-    // let city: string = this.routerParams['city'];
-    const listParams: string[] = params.split(',');
-    return listParams.map( (element: string) => element );
+    // const params: string = this.routerParams[key];
+    const params: string = localStorage.getItem(key);
+    if (params) {
+      const listParams: string[] = params.split(',');
+      return listParams.map( (element: string) => element );
+    } else {
+      return [];
+    }
   }
 
-  private setRouterParams(fieldName: any): void {
-    console.log('click filter');
-    this.selectedFilter = this.control.options.filter((item: any ) => item.checked === true);
-    let values: string[] = this.selectedFilter.map((item: object) => {
-      let label: any =  item['label'];
-      return label;
-    });
+  private setRouterParams(field: string): void {
+    // find all active filters
+    // get all labels for active filters as array
+    // convert array of filters into string separated by comma
+    console.log('clickkkk');
+    this.onInteract = true;
+    let labels: string[] = [];
+    let filteredKeys: string;
+    setTimeout( () => {
+      this.options.map( (option: object ) => {
+        const optionId: any = option['value'];
+        if (this.lastSetValue.includes(optionId)) {
+          console.log('found', option['label']);
+          labels.push(option['label']);
+        }
+      });
+      filteredKeys = labels.toString();
+      let params: object = {};
+      params[field] = filteredKeys;
+      this.attachParamsToUrl(params);
+    }, 300);
+  }
 
-    const filteredKeys: string = values.toString(); 
-    switch (fieldName) {
-      case 'publishedCategory':
-        localStorage.setItem('category', filteredKeys);
-        break;
-      case 'address(state)':
-        localStorage.setItem('state', filteredKeys);
-        break;
-      case 'address(city)':
-        localStorage.setItem('city', filteredKeys);
-        break;
-      default:
-        break;
-    }
-
-    let params: object = {
-      'category': localStorage.getItem('category'),
-      'state': localStorage.getItem('state'),
-      'city': localStorage.getItem('city'),
-    };
-
+  private attachParamsToUrl(params: object): void {
+    console.log('params', params);
     this._router.navigate([], {
       relativeTo: this.activatedRoute,
       queryParams: params,
       queryParamsHandling: 'merge',
       skipLocationChange: false,
     });
-
-    // if (this.hasParams) {
-    //   console.log('has params..');
-    //   switch (this.field) {
-    //     case 'address(city)':
-    //       const city: string[] = this.getFilterParams('city');
-
-    //       break;
-    //     case 'address(state)':
-    //       const state: string[] = this.getFilterParams('state');
-
-    //       break;
-    //     case 'publishedCategory(id,name)':
-          
-    //       break;
-    //     default:
-    //       break;
-    //   }
-    // }
   }
 
   private handleJobIdsOnSuccess(res: any): void {
@@ -164,7 +139,7 @@ export class SidebarFilterComponent implements OnChanges {
             });
           }
           this.checkboxFilter.emit(values);
-          this.setRouterParams(this.fieldName);
+          this.setRouterParams('city');
         };
         break;
       case 'address(state)':
@@ -185,7 +160,7 @@ export class SidebarFilterComponent implements OnChanges {
             });
           }
           this.checkboxFilter.emit(values);
-          this.setRouterParams(this.fieldName);
+          this.setRouterParams('state');
         };
         break;
       case 'publishedCategory(id,name)':
@@ -207,8 +182,9 @@ export class SidebarFilterComponent implements OnChanges {
             return `publishedCategory.id{?^^equals}${value}`;
           });
           }
+          console.log(this.lastSetValue);
           this.checkboxFilter.emit(values);
-          this.setRouterParams(this.fieldName);
+          this.setRouterParams('category');
         };
         break;
       default:
@@ -221,29 +197,65 @@ export class SidebarFilterComponent implements OnChanges {
       interactions: [{event: 'change', script: interaction.bind(this), invokeOnInit: false}],
     });
 
-    const _categories: string[] = this.getFilterParams('category');
-    const _filteredValues: string[] = [];
-    _categories.forEach( (category: string) => {
-      console.log(category, 'category');
-      this.control.options.forEach((item: any) =>  {
-        const value: any = item['value'];
-        if (item['label'] === category) {
-          const filterValue: string = `publishedCategory.id{?^^equals}${value}`;
-          _filteredValues.push(filterValue);
-          this.values.push(value);
+    const isLoading: string = localStorage.getItem(`loader-${this.fieldName}`);
+    if (!this.onInteract) {
+      if ( this.hasParams && isLoading !== 'true') {
+        console.log('active filter', this.fieldName);
+        let _filteredParams: string[] = [];
+        switch (this.field) {
+          case 'address(city)':
+            _filteredParams = this.getFilterParams('city');
+            this.setInitialFilter(_filteredParams);
+            break;
+          case 'address(state)':
+            _filteredParams = this.getFilterParams('state');
+            this.setInitialFilter(_filteredParams);
+            break;
+          case 'publishedCategory(id,name)':
+            _filteredParams = this.getFilterParams('category');
+            this.setInitialFilter(_filteredParams);
+            break;
+          default:
+            break;
         }
-      });
-    });
-
-    const loading: string = localStorage.getItem('loading');
-    if (loading !== 'true') {
-      this.checkboxFilter.emit(_filteredValues);
-      this.lastSetValue = this.values;
-      localStorage.setItem('loading', 'true');
+        this.lastSetValue = this.values;
+        this.checkboxFilter.emit(this.filterValues);
+        localStorage.setItem(`loader-${this.fieldName}`, 'true');
+      }
     }
-
+    
     this.formUtils.setInitialValues([this.control], {'checklist': this.lastSetValue});
     this.form = this.formUtils.toFormGroup([this.control]);
     this.loading = false;
   }
+
+  private setInitialFilter(filterParams: string[]): void {
+    filterParams.forEach( (val: string) => {
+      console.log(val, 'filteredItem');
+      let filterValue: string;
+    
+      this.control.options.forEach((item: any) =>  {
+        const value: any = item['value'];
+        if (item['label'] === val) {
+          switch (this.field) {
+            case 'address(city)':
+              filterValue = `address.city{?^^equals}{?^^delimiter}${value}{?^^delimiter}`;
+              break;
+            case 'address(state)':
+              filterValue = `address.state{?^^equals}{?^^delimiter}${value}{?^^delimiter}`;
+              break;
+            case 'publishedCategory(id,name)':
+              filterValue = `publishedCategory.id{?^^equals}${value}`; 
+              break;
+            default: 
+              break;
+          }
+
+          this.filterValues.push(filterValue);
+          this.values.push(value);
+        }
+      });
+    });
+  }
+
 }
