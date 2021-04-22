@@ -3,7 +3,6 @@ import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from
 import { SearchService } from '../../services/search/search.service';
 import { CheckListControl, FormUtils, NovoFormGroup, FieldInteractionApi } from 'novo-elements';
 import { ActivatedRoute, Router } from '@angular/router';
-
 @Component({
   selector: 'app-sidebar-filter',
   templateUrl: './sidebar-filter.component.html',
@@ -35,15 +34,14 @@ export class SidebarFilterComponent implements OnChanges {
     private _router: Router) {
 
       localStorage.clear();
-      console.log('contructor');
 
       this.activatedRoute.queryParams.subscribe((params: object) => {
         if (Object.keys(params).length !== 0) {
           this.hasParams = true;
           this.routerParams = params;
-          localStorage.setItem('category', params['category']);
-          localStorage.setItem('city', params['city']);
-          localStorage.setItem('state', params['state']);
+          // localStorage.setItem('category', params['category']);
+          // localStorage.setItem('city', params['city']);
+          // localStorage.setItem('state', params['state']);
         }
       });
     }
@@ -70,8 +68,8 @@ export class SidebarFilterComponent implements OnChanges {
   }
 
   private getFilterParams(key: string): any {
-    // const params: string = this.routerParams[key];
-    const params: string = localStorage.getItem(key);
+    const params: string = this.routerParams[key];
+    // const params: string = localStorage.getItem(key);
     if (params) {
       const listParams: string[] = params.split(',');
       return listParams.map( (element: string) => element );
@@ -84,27 +82,25 @@ export class SidebarFilterComponent implements OnChanges {
     // find all active filters
     // get all labels for active filters as array
     // convert array of filters into string separated by comma
-    console.log('clickkkk');
     this.onInteract = true;
     let labels: string[] = [];
     let filteredKeys: string;
-    setTimeout( () => {
-      this.options.map( (option: object ) => {
-        const optionId: any = option['value'];
-        if (this.lastSetValue.includes(optionId)) {
-          console.log('found', option['label']);
-          labels.push(option['label']);
-        }
-      });
-      filteredKeys = labels.toString();
-      let params: object = {};
-      params[field] = filteredKeys;
-      this.attachParamsToUrl(params);
-    }, 300);
+    this.options.map( (option: object ) => {
+      const optionId: any = option['value'];
+      if (this.lastSetValue.includes(optionId)) {
+        let label: string = option['label'];
+        label = label.split(' (')[0];
+        labels.push(label);
+      }
+    });
+
+    filteredKeys = labels.toString();
+    let params: object = {};
+    params[field] = filteredKeys;
+    this.attachParamsToUrl(params);
   }
 
   private attachParamsToUrl(params: object): void {
-    console.log('params', params);
     this._router.navigate([], {
       relativeTo: this.activatedRoute,
       queryParams: params,
@@ -182,7 +178,6 @@ export class SidebarFilterComponent implements OnChanges {
             return `publishedCategory.id{?^^equals}${value}`;
           });
           }
-          console.log(this.lastSetValue);
           this.checkboxFilter.emit(values);
           this.setRouterParams('category');
         };
@@ -200,7 +195,6 @@ export class SidebarFilterComponent implements OnChanges {
     const isLoading: string = localStorage.getItem(`loader-${this.fieldName}`);
     if (!this.onInteract) {
       if ( this.hasParams && isLoading !== 'true') {
-        console.log('active filter', this.fieldName);
         let _filteredParams: string[] = [];
         switch (this.field) {
           case 'address(city)':
@@ -231,12 +225,14 @@ export class SidebarFilterComponent implements OnChanges {
 
   private setInitialFilter(filterParams: string[]): void {
     filterParams.forEach( (val: string) => {
-      console.log(val, 'filteredItem');
       let filterValue: string;
-    
-      this.control.options.forEach((item: any) =>  {
-        const value: any = item['value'];
-        if (item['label'] === val) {
+      this.options.map((item: any) =>  {
+        let value: any = item['value'];
+        let label: string = item['label'];
+        if (this.field !== 'publishedCategory(id,name)') {
+          label = item['value'];
+        }
+        if (label.includes(val)) {
           switch (this.field) {
             case 'address(city)':
               filterValue = `address.city{?^^equals}{?^^delimiter}${value}{?^^delimiter}`;
@@ -250,12 +246,10 @@ export class SidebarFilterComponent implements OnChanges {
             default: 
               break;
           }
-
-          this.filterValues.push(filterValue);
           this.values.push(value);
+          this.filterValues.push(filterValue);
         }
       });
     });
   }
-
 }
